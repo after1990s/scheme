@@ -1,0 +1,10 @@
+#lang scheme
+(define (f a b c sum current n)
+  (cond ((and (< current n) (< current  4))  
+           (f b c current (+ a b c) (+ 1 current) n))
+		((and (< current n) (> current 3))
+		   (f b c (+ a b c) (+ a b c) (+ 1 current) n))
+		((= current n)
+		  (+ a b c)
+		  )))
+(write (f 0 0 0 0 0 5))

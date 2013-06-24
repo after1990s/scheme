@@ -1,0 +1,20 @@
+#lang racket
+(define (small-divisor n)
+  (f n 2))
+(define (f n div)
+  (cond ((= n div) 0)
+        ((= (remainder n div) 0) div)
+        (else (f n (next div)))))
+(define (next n)
+  (if (= n 2)
+      3
+      (+ n 2)))
+(define (time-prime-test n start_time)
+  (cond ((= (small-divisor n) 0)
+         (write n)
+         (newline)
+         (write (- (current-milliseconds) start_time))
+         )
+        (else
+         (time-prime-test (+ n 1) start_time))))
+(time-prime-test 100000000 (current-milliseconds))
