@@ -1,18 +1,18 @@
 ;chapter 4.1 
 (define (eval exp env)
  (cond ((self-evaluation? exp))
-	   ((variable? exp) (lookup-variable-value exp env))
-	   ((quoted? exp) (text-of-quotation exp))
-	   ((assignment? exp) (eval-assignment exp env))
-	   ((definition? exp) (eval-definition exp env))
-	   ((if? exp) (eval-if exp env))
-	   ((lambda? exp);lambda statment
-		(make-procedure (lambda-parameters exp) (lambda-body exp) env))
-	   ((begin? exp) (eval-sequence (begin-actions exp) env));begin statment
-	   ((cond? exp) (eval (cond->if exp) env))
-	   ((application? exp) (apply (eval (operator exp) env);call function
-		   (list-of-values (operands exp) env)));list of arguments.
-	   (else (error "unkonuwn expression type-EVAL" exp))))
+     ((variable? exp) (lookup-variable-value exp env))
+     ((quoted? exp) (text-of-quotation exp))
+     ((assignment? exp) (eval-assignment exp env))
+     ((definition? exp) (eval-definition exp env))
+     ((if? exp) (eval-if exp env))
+     ((lambda? exp);lambda statment
+    (make-procedure (lambda-parameters exp) (lambda-body exp) env))
+     ((begin? exp) (eval-sequence (begin-actions exp) env));begin statment
+     ((cond? exp) (eval (cond->if exp) env))
+     ((application? exp) (apply (eval (operator exp) env);call function
+       (list-of-values (operands exp) env)));list of arguments.
+     (else (error "unkonuwn expression type-EVAL" exp))))
 
 (define (apply procedure arguments)
   (cond ((primitive-procedure? procedure) 
@@ -118,4 +118,37 @@
 (define (begin? exp) 
   (tagged-list exp 'begin))
 
-(
+(define (begin-action exp) (cdr exp))
+
+(define (last-exp? seq) (null? (cdr seq)))
+
+(define (rest-exps exp) (cdr exp))
+
+(define (first-exp exp) (car exp))
+
+(define (make-begin seq) (cons 'begin seq))
+
+(define (sequence->exp seq)
+  (cond ((null? seq) seq)
+        ((last-exp? seq) (first-exp seq))
+        (else (make-being seq))))
+(define (application? exp) (pair? exp))
+
+(define (operator exp) (car exp))
+
+(define (operands exp) (cdr exp))
+
+(define (no-operands? ops) (null? ops))
+
+(define (first-operand ops) (car ops))
+
+(define (rest-operand ops) (cdr ops))
+
+(define (cond? exp) (tagged-list? exp 'cond))
+
+(define (cond->if exp) (expand-clauses (cdr exp)))
+
+(define (expand-causes exp)
+  (cond ((null? exp) 'false)
+        ((pair? exp) 'false)
+        ((make-if (caar exp) (cadar exp) (expand-causes (cdr exp))))))
