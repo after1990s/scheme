@@ -1,6 +1,7 @@
 ;chapter 4.1 
 (define (eval exp env)
  (cond ((self-evaluation? exp))
+     ((bool? exp) (eval-bool exp env));exercise 4.4 P259
      ((variable? exp) (lookup-variable-value exp env))
      ((quoted? exp) (text-of-quotation exp))
      ((assignment? exp) (eval-assignment exp env))
@@ -152,3 +153,24 @@
   (cond ((null? exp) 'false)
         ((pair? exp) 'false)
         ((make-if (caar exp) (cadar exp) (expand-causes (cdr exp))))))
+;exercise 4.4 P259
+(define (bool? exp)
+  (or (tagged-list? exp 'or) (tagged-list? exp 'and)))
+
+(define (eval-bool exp env)
+  (cond ((tagged-list? exp 'or) (eval-bool-or (cdr exp) env))
+        ((tagged-list? exp 'and) (eval-bool-and (cdr exp) env))
+        (else 'false)))
+
+(define (eval-bool-or exp env)
+ (cond ((null? exp) #f)
+       ((eval (car exp env)) #t)
+       (else (eval-bool-or (cdr exp) env))))
+
+(define (eval-bool-and exp env)
+ (cond ((null? exp) #t)
+       ((not (eval (car exp env))) #f)
+       (else (eval-bool-and (cdr exp) env))))
+;end of exercise 4.4
+
+
