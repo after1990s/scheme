@@ -1,15 +1,15 @@
 ;chapter 4.1 
 (define (user-eval exp env)
- ;(display "DEBUG VALUE")
- ;(newline)
- ;(display "exp:")
-; (display exp)
-; (newline)
-; (display "env:")
+(display "eval DEBUG VALUE")
+(newline)
+(display "exp:")
+ (display exp)
+ (newline)
+ (display "env:")
 ; (display env)
-; (newline)
+ (newline)
 ; (display "result:")
-; (newline)
+ (newline)
  (cond ((self-evaluating? exp) exp)
      ((bool? exp) (eval-bool exp env));exercise 4.4 P259
      ((variable? exp) (lookup-variable-value exp env))
@@ -26,6 +26,12 @@
      (else (error "unkonuwn expression type-EVAL" exp))))
 
 (define (apply procedure arguments)
+ (display "apply DEBUG VALUE")
+ (newline)
+ (display "procedure:")
+ (display procedure)
+ (display "arguments:")
+ (display arguments)
   (cond ((primitive-procedure? procedure) 
           (apply-primitive-procedure procedure arguments))
         ((compound-procedure? procedure)
@@ -38,8 +44,12 @@
         (else (error "unknown procedure type-APPLY" procedure))))
 
 (define (list-of-values exps env);calc all exps' value and return the list.
+(display "list-of-values DEBUG VALUE")
+(newline)
+(display "exps:")
+(display exps)
   (if ((no-operands? exps) '())
-      (cons (user-eval (first-operands exps env)) 
+      (cons (user-eval (first-operand exps env)) 
             (list-of-values (rest-operands exps) env))))
 
 (define (eval-if exp env)
@@ -65,6 +75,11 @@
                    env))
 
 (define (self-evaluating? exp)
+(display "self-evaluation? DEBUG VALUE")
+(newline)
+(display "exp:")
+(display exp)
+(newline)
   (cond ((number? exp) #t)
         ((string? exp) #t)
         (else #f)))
@@ -153,9 +168,18 @@
   (cond ((null? seq) seq)
         ((last-exp? seq) (first-exp seq))
         (else (make-being seq))))
-(define (application? exp) (pair? exp))
+(define (application? exp) 
+ (begin 
+ ; (display "debug info:" )
+ ; (display exp)
+  (pair? exp)))
 
-(define (operator exp) (car exp))
+(define (operator exp) 
+ (begin 
+  (display "operator debug info:")
+  (display exp)
+  (newline)
+  (car exp)))
 
 (define (operands exp) (cdr exp))
 
@@ -163,7 +187,7 @@
 
 (define (first-operand ops) (car ops))
 
-(define (rest-operand ops) (cdr ops))
+(define (rest-operands ops) (cdr ops))
 
 (define (cond? exp) (tagged-list? exp 'cond))
 
