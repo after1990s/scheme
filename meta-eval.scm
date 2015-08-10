@@ -1,9 +1,10 @@
 ;chapter 4.1 
+(define apply-in-underlying-scheme apply)
 (define (user-eval exp env)
 (display "eval DEBUG VALUE")
 (newline)
 (display "exp:")
- (display exp)
+; (display exp)
  (newline)
  (display "env:")
 ; (display env)
@@ -21,6 +22,7 @@
     (make-procedure (lambda-parameters exp) (lambda-body exp) env))
      ((begin? exp) (eval-sequence (begin-actions exp) env));begin statment
      ((cond? exp) (user-eval (cond->if exp) env))
+     ((let? exp) (apply (let->combination exp env) (let->arguments exp env)))
      ((application? exp) (apply (user-eval (operator exp) env);call function
        (list-of-values (operands exp) env)));list of arguments.
      (else (error "unkonuwn expression type-EVAL" exp))))
@@ -29,18 +31,20 @@
  (display "apply DEBUG VALUE")
  (newline)
  (display "procedure:")
- (display procedure)
+; (display procedure)
+(newline)
  (display "arguments:")
- (display arguments)
+; (display arguments)
+ (newline)
   (cond ((primitive-procedure? procedure) 
           (apply-primitive-procedure procedure arguments))
         ((compound-procedure? procedure)
           (eval-sequence 
             (procedure-body procedure)
-            (extend-enviroment 
-              (procedure-paraments procedure)
+            (extend-environment 
+              (procedure-parameters procedure)
               arguments
-              (procedure-enviroments procedure))))
+              (procedure-environment procedure))))
         (else (error "unknown procedure type-APPLY" procedure))))
 
 (define (list-of-values exps env);calc all exps' value and return the list.
@@ -48,8 +52,9 @@
 (newline)
 (display "exps:")
 (display exps)
-  (if ((no-operands? exps) '())
-      (cons (user-eval (first-operand exps env)) 
+  (if (no-operands? exps) 
+      '()
+      (cons (user-eval (first-operand exps) env) 
             (list-of-values (rest-operands exps) env))))
 
 (define (eval-if exp env)
@@ -62,7 +67,7 @@
       (user-eval (first-exp exp) env)
       (begin 
         (user-eval (first-exp exp) env)
-        (eval-sequence (rest-exp exp) env))))
+        (eval-sequence (rest-exps exp) env))))
 
 (define (eval-assignment exp env)
   (set-variable-value! (assignment-variable exp)
@@ -119,6 +124,14 @@
       (caadr exp)))
 
 (define (user-make-lambda  parameters body)
+(display "DEBUG user-make-lambda")
+(newline)
+(display "parameters:")
+(display parameters)
+(newline)
+(display "body:")
+(display body)
+(newline)
  (cons 'lambda (cons parameters body)))
 
 (define (definition-value exp)
@@ -208,12 +221,12 @@
 
 (define (eval-bool-or exp env)
  (cond ((null? exp) #f)
-       ((user-eval (car exp env)) #t)
+       ((user-eval (car exp )env) #t)
        (else (eval-bool-or (cdr exp) env))))
 
 (define (eval-bool-and exp env)
  (cond ((null? exp) #t)
-       ((not (user-eval (car exp env))) #f)
+       ((not (user-eval (car exp) env)) #f)
        (else (eval-bool-and (cdr exp) env))))
 ;end of exercise 4.4
 
@@ -300,6 +313,12 @@
                                    (list 'cdr cdr)
                                    (list 'cons cons)
                                    (list 'null? null?)
+                                   (list '* *)
+                                   (list '+ +)
+                                   (list '/ /)
+                                   (list '- -)
+                                   (list 'display display)
+                                   (list 'newline newline)
                              ))
 (define (primitive-procedure-names)
   (map car primitive-procedures))
@@ -311,6 +330,10 @@
 (define (make-procedure para body env)
  (list 'procedure para body env))
 
+(define (apply-primitive-procedure proc args)
+  (apply-in-underlying-scheme
+    (primitive-implementation proc) args))
+
 (define (compound-procedure? p)
  (tagged-list? p 'procedure))
 
@@ -319,6 +342,37 @@
 (define (procedure-parameters p) (cadr p))
 
 (define (procedure-environment p) (cadddr p))
+
+;exercise 4.6
+(define (let? exp) (tagged-list? exp 'let))
+
+(define (let->combination exp env)
+  (make-procedure (let-parameters exp) (let-body exp) env))
+
+(define (let->arguments exp env)
+  (define (let->arguments-internal exp env)
+    (if (eq? exp '()) 
+        '()
+        (cons (user-eval (cadar exp) env) 
+              (let->arguments-internal (cdr exp) env))))
+  (let->arguments-internal (cadr exp) env))
+
+(define (let-body exp)
+    (display "DEBUG let-body:")
+    (display exp)
+    (newline)
+  (caddr exp))
+
+(define (let-parameters exp)
+  (define (let-parameters-internal exp)
+    (display "DEBUG let-parameters-internal:")
+    (display exp)
+    (newline)
+    (if (eq? exp '())
+        '()
+        (cons (caar exp) (let-parameters-internal (cdr exp)))))
+  (let-parameters-internal (cadr exp)))
+;end of exerise 4.6
 (define (setup-environment)
  (let ((initial-env
         (extend-environment (primitive-procedure-names)
