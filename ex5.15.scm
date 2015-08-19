@@ -14,7 +14,10 @@
   (define (dispatch m)
    (cond ((eq? m 'get) contents)
          ((eq? m 'set)
-            (lambda (value) (set! contents value)))
+            (lambda (value) 
+             (newline)
+             (display (list 'set name '= value))
+             (set! contents value)))
          (else 
           (error "unknown requeset -- REGISTER" m))))
   dispatch))
@@ -27,9 +30,11 @@
 
 (define (make-new-machine)
   (let ((pc (make-register 'pc))
+        (ic (make-register 'ic));instruction counter 
         (flag (make-register 'flag))
         (stack (make-stack))
         (the-instruction-sequence '()))
+   (set-contents! ic 0)
    (let ((the-ops
           (list (list 'initialize-stack 
                  (lambda () (stack 'initialize)))))
@@ -52,6 +57,14 @@
        (begin 
         ((instruction-execution-proc (car insts)))
         (execute)))))
+   (define (print-instruction-counter)
+    (newline)
+    (display '('ic '= (get-contents ic))))
+   (define (reset-instruction-counter)
+    (set-contents! ic 0))
+   (define (advance-pc)
+    (set-contents! ic (+ (get-contents ic) 1))
+    (set-contents! pc (cdr (get-contents pc))))
    (define (dispatch m)
     (cond ((eq? m 'start) 
            (set-contents! pc the-instruction-sequence)
@@ -64,9 +77,13 @@
            (lambda(ops) (set! the-ops (append the-ops ops))))
           ((eq? m 'stack) stack)
           ((eq? m 'operations) the-ops)
+          ((eq? m 'print-instruction-counter) (print-instruction-counter))
+          ((eq? m 'reset-instruction-counter) (reset-instruction-counter))
+          ((eq? m 'advance-pc) (advance-pc))
           (else (error "unknown request -- MACHINE" m))))
   dispatch)))
-
+(define (print-ic machine)
+ (machine 'print-instruction-counter))
 (define (get-register machine reg-name)
   ((machine 'get-register) reg-name))
 (define (start machine)
@@ -155,7 +172,7 @@
               (make-primitive-exp (car value-exp) 
               machine labels ))))
           (lambda() (set-contents! target (value-proc))
-                    (advance-pc pc)))))
+                    (advance-pc pc machine)))))
 
 (define (assign-reg-name assign-instruction)
   (cadr assign-instruction))
@@ -163,8 +180,9 @@
 (define (assign-value-exp assign-instruction)
   (cddr assign-instruction))
 
-(define (advance-pc pc)
-  (set-contents! pc (cdr (get-contents pc))))
+(define (advance-pc pc machine)
+; (set-contents! pc (cdr (get-contents pc))))
+(machine 'advance-pc))
 
 (define (make-test inst machine labels operations flag pc)
   (let ((test-condition (test-condition inst)))
@@ -174,7 +192,7 @@
                 operations)))
                 (lambda() 
                   (set-contents! flag (test-proc))
-                  (advance-pc pc)))
+                  (advance-pc pc machine)))
               (error "unkonwn test operation " ))))
 
 (define (test-condition inst)
@@ -187,7 +205,7 @@
         (lambda()
           (if (get-contents flag)
               (set-contents! pc dst-insts)
-              (advance-pc pc))))
+              (advance-pc pc machine))))
     (error "unknown branch label "))))
 
 (define (branch-dest inst)
@@ -212,7 +230,7 @@
 (define (make-save inst machine stack pc)
   (let ((reg (get-register machine (make-stack-reg-name inst))))
     (lambda() (push stack (get-contents reg))
-              (advance-pc pc))))
+              (advance-pc pc machine))))
 
 (define (make-stack-reg-name inst)
   (cadr inst))
@@ -220,12 +238,12 @@
 (define (make-restore inst machine stack pc)
   (let ((reg (get-register machine (make-stack-reg-name inst))))
     (lambda() (set-contents! reg (pop stack))
-              (advance-pc pc))))
+              (advance-pc pc machine))))
 (define (make-perform inst machine labels operations pc)
   (let ((op (perform-operation)))
     (if (operation-exp? op)
         (let ((op-proc (make-operation-exp op machine labels operations)))
-          (lambda() (op-proc) (advance-pc pc)))
+          (lambda() (op-proc) (advance-pc pc machine)))
         (error "unknown perform op"))))
 (define (make-primitive-exp exp machine labels)
   (cond ((constant-exp? exp) 

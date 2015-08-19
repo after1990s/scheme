@@ -10,11 +10,20 @@
   machine))
 
 (define (make-register name)
- (let ((contents '*unassigned*))
+ (let ((contents '*unassigned*)
+       (trace #f) 
+       )
   (define (dispatch m)
    (cond ((eq? m 'get) contents)
          ((eq? m 'set)
-            (lambda (value) (set! contents value)))
+            (lambda (value) 
+             (if trace
+               (begin (newline)(display (list 'from 'reg name '= contents 'to value))))
+             (set! contents value)))
+         ((eq? m 'set-trace)
+          (set! trace #t))
+         ((eq? m 'un-trace)
+          (set! trace #f))
          (else 
           (error "unknown requeset -- REGISTER" m))))
   dispatch))
@@ -25,26 +34,51 @@
 (define (set-contents! register value)
  ((register 'set) value))
 
+(define (set-reg-trace register)
+ (register 'set-trace))
+
+(define (unset-reg-trace register)
+ (register 'un-trace))
+
 (define (make-new-machine)
   (let ((pc (make-register 'pc))
+        (ic (make-register 'ic));instruction counter 
+        (sr (make-register 'sr));show instruction register
         (flag (make-register 'flag))
         (stack (make-stack))
         (the-instruction-sequence '()))
+   (set-contents! ic 0)
+   (set-contents! sr #f)
    (let ((the-ops
           (list (list 'initialize-stack 
                  (lambda () (stack 'initialize)))))
         (register-table
          (list (list 'pc pc) (list 'flag flag))))
+
     (define (allocate-register name)
      (if (assoc name register-table)
       (error "Mutiply defined register: "name)
       (set! register-table (cons (list name (make-register name)) register-table)))
      'register-allocated)
+
     (define (lookup-register name)
      (let ((val (assoc name register-table)))
       (if val
        (cadr val)
        (error "unknown register" name))))
+    
+    (define (set-trace-reg name)
+     (let ((reg (assoc name register-table)))
+      (if reg
+        (set-reg-trace (cadr reg))
+        (error "unknown register" name))))
+
+    (define (un-trace-reg name)
+     (let ((reg (assoc name register-table)))
+      (if reg
+        (unset-reg-trace (cadr reg))
+        (error "unknown register" name))))
+
     (define (execute)
      (let ((insts (get-contents pc)))
       (if (null? insts)
@@ -52,6 +86,25 @@
        (begin 
         ((instruction-execution-proc (car insts)))
         (execute)))))
+
+   (define (print-instruction-counter)
+    (newline)
+    (display (list 'ic '= (get-contents ic))))
+
+   (define (reset-instruction-counter)
+    (set-contents! ic 0))
+   (define (advance-pc)
+    (set-contents! ic (+ (get-contents ic) 1))
+    (if (get-contents sr)
+      (begin (newline)
+          (display (list 'last-instruction '= (caar (get-contents pc))))
+          (newline)
+          (display (list 'next-instruction '= (caadr (get-contents pc))))))
+    (set-contents! pc (cdr (get-contents pc))))
+   (define (make-trace-on)
+    (set-contents! sr #t))
+   (define (make-trace-off)
+    (set-contents! sr #f))
    (define (dispatch m)
     (cond ((eq? m 'start) 
            (set-contents! pc the-instruction-sequence)
@@ -64,9 +117,20 @@
            (lambda(ops) (set! the-ops (append the-ops ops))))
           ((eq? m 'stack) stack)
           ((eq? m 'operations) the-ops)
+          ((eq? m 'print-instruction-counter) (print-instruction-counter))
+          ((eq? m 'reset-instruction-counter) (reset-instruction-counter))
+          ((eq? m 'advance-pc) (advance-pc))
+          ((eq? m 'trace-on) (make-trace-on))
+          ((eq? m 'trace-off) (make-trace-off))
+          ((eq? m 'trace-reg)  set-trace-reg)
+          ((eq? m 'untrace-reg) un-trace-reg)
           (else (error "unknown request -- MACHINE" m))))
   dispatch)))
 
+(define (set-trace-reg machine name)
+ ((machine 'trace-reg) name))
+(define (print-ic machine)
+ (machine 'print-instruction-counter))
 (define (get-register machine reg-name)
   ((machine 'get-register) reg-name))
 (define (start machine)
@@ -155,7 +219,7 @@
               (make-primitive-exp (car value-exp) 
               machine labels ))))
           (lambda() (set-contents! target (value-proc))
-                    (advance-pc pc)))))
+                    (advance-pc pc machine)))))
 
 (define (assign-reg-name assign-instruction)
   (cadr assign-instruction))
@@ -163,8 +227,9 @@
 (define (assign-value-exp assign-instruction)
   (cddr assign-instruction))
 
-(define (advance-pc pc)
-  (set-contents! pc (cdr (get-contents pc))))
+(define (advance-pc pc machine)
+; (set-contents! pc (cdr (get-contents pc))))
+(machine 'advance-pc))
 
 (define (make-test inst machine labels operations flag pc)
   (let ((test-condition (test-condition inst)))
@@ -174,7 +239,7 @@
                 operations)))
                 (lambda() 
                   (set-contents! flag (test-proc))
-                  (advance-pc pc)))
+                  (advance-pc pc machine)))
               (error "unkonwn test operation " ))))
 
 (define (test-condition inst)
@@ -187,7 +252,7 @@
         (lambda()
           (if (get-contents flag)
               (set-contents! pc dst-insts)
-              (advance-pc pc))))
+              (advance-pc pc machine))))
     (error "unknown branch label "))))
 
 (define (branch-dest inst)
@@ -212,7 +277,7 @@
 (define (make-save inst machine stack pc)
   (let ((reg (get-register machine (make-stack-reg-name inst))))
     (lambda() (push stack (get-contents reg))
-              (advance-pc pc))))
+              (advance-pc pc machine))))
 
 (define (make-stack-reg-name inst)
   (cadr inst))
@@ -220,12 +285,12 @@
 (define (make-restore inst machine stack pc)
   (let ((reg (get-register machine (make-stack-reg-name inst))))
     (lambda() (set-contents! reg (pop stack))
-              (advance-pc pc))))
+              (advance-pc pc machine))))
 (define (make-perform inst machine labels operations pc)
   (let ((op (perform-operation)))
     (if (operation-exp? op)
         (let ((op-proc (make-operation-exp op machine labels operations)))
-          (lambda() (op-proc) (advance-pc pc)))
+          (lambda() (op-proc) (advance-pc pc machine)))
         (error "unknown perform op"))))
 (define (make-primitive-exp exp machine labels)
   (cond ((constant-exp? exp) 
